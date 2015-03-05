@@ -81,8 +81,8 @@ class Agent:
 
         # TODO: calculate movment
         # Return number of cells to move horiz/vert
-        x = -1
-        y = 1
+        x = random.randint(-1, 1)
+        y = random.randint(-1, 1)
         return x, y
 
     def update(self):

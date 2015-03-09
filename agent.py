@@ -1,6 +1,7 @@
 import random
 from BIS_constants import *
 
+
 class Signal:
     pass
 
@@ -68,7 +69,7 @@ class Agent(object):
         self.state = None  # TODO: init state
         self.probe_range = probe_range
         self.tracker = SignalTracker()
-        self.signals = {} # Dict {state: (signal, value)}
+        self.signals = {}  # Dict {state: (signal, value)}
         self.kind = ""
         # self.life
         # self.duration
@@ -169,3 +170,90 @@ class PC1(Agent):
             return {apop: self.signal_level}
         if self.current_state == 5:
             return {necro: self.signal_level}
+
+
+class MP(Agent):
+    def __init__(self, probe_range=1):
+        super(MP, self).__init__(probe_range)
+
+        self.current_state = 0
+        self.state_time = 0
+        self.zone_time = 0
+        self.signal_time = 0
+
+        # init_state, states, transitions
+        # states : list (int)
+        # transitions : list (int, int, dict, dict)
+        # (src, dst, signals, agents)
+
+        self.signal_level = OutputSignal
+        self.displayed_antigen = None
+
+    def update(tracker):
+        signals = tracker.signals
+        agents = tracker.agents
+
+        old_state = self.current_state
+        if self.current_state == 0:
+            if (signals[PK1] > 0 or signals[CK1] > 0 or signals[comp] > 0 or
+                    signals[necro] > 0):
+                self.current_state = 1
+            elif signals[apop] > 0 or signals[Ab1] > 0 or signals[Ab2] > 0:
+                self.current_state = 2
+        elif self.current_state == 1:
+            self.kind = MP1
+            # TODO: Figure out how to deal with antigen presentation
+            if agents[PC1] > 0:
+                self.signal_time = -1
+                self.current_state = 3
+            else:
+                self.current_state = 1
+
+        elif self.current_state == 2:
+            self.kind = MP2
+            if (agents[MP1] > 0):
+                # TODO: Scavenge PC
+                self.current_state = 4
+
+        elif self.current_state == 3:
+            # TODO: Check if PC is alive or scavenged and signal that we killed
+            #       it
+            if agents[PC1] > 0:
+                self.signal_time = -1
+            # TODO: Scavenge Dead PC
+            elif agents[T1] > 0:
+                self.zone_time = 0
+            elif signals[CK1] > signals[CK2] and signals[apop]:
+                self.current_state = 4
+
+        elif self.current_state = 4:
+            if agents[T2] > 0:
+                self.zone_time = 0
+
+        if old_state != self.current_state:
+            self.state_time = 0
+        else:
+            self.state_time += 1
+
+        self.zone_time += 1
+        self.signal_time += 1
+
+        if self.zone_time > LIFE_MO_Zone1:
+            self.current_state = 5
+
+    def emit(self):
+        if self.kind == MP1 and self.signal_time > DURATION_MK1_Zone1:
+            self.signal_level = 0
+        elif self.kind == MP2 and self.signal_time > DURATION_MK2_Zone1:
+            self.signal_level = 0
+        else:
+            self.signal_level = 1000
+
+        if self.current_state == 0:
+            return {}
+        elif self.current_state == 1 or self.current_state == 3:
+            return {MK1: self.signal_level}
+        elif self.current_state == 2 or self.current_state == 4:
+            return {MK2: self.signal_level}
+        elif self.current_state == 5:
+            return {apop: self.signal_level}

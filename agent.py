@@ -1,4 +1,5 @@
 import random
+from BIS_constants import *
 
 class Signal:
     pass
@@ -61,9 +62,9 @@ class FSM:
             self.current = passed[0]
 
 
-class Agent:
-    def __init__(self, fsm=None, probe_range=1):
-        self.fsm = fsm
+class Agent(object):
+    def __init__(self, probe_range=1):
+        self.fsm = None
         self.state = None  # TODO: init state
         self.probe_range = probe_range
         self.tracker = SignalTracker()
@@ -94,3 +95,77 @@ class Agent:
         signal = []
         return signal
 
+
+class PC1(Agent):
+    def __init__(self, probe_range=1):
+        super(PC1, self).__init__(probe_range)
+
+        self.current_state = 2
+        self.state_time = 0
+        # init_state, states, transitions
+        # states : list (int)
+        # transitions : list (int, int, dict, dict)
+        # (src, dst, signals, agents)
+        self.scavenged = False
+        # TODO: split for multiple signals
+        self.signal_level = OutputSignal
+
+    def update(tracker):
+        signals = tracker.signals
+        agents = tracker.agents
+
+        old_state = self.current_state
+        if self.current_state == 0:
+            if signals['virus'] > signals[Ab1] + signals[Ab2]:
+                self.current_state = 2
+            elif signals[necro] > 0:
+                self.current_state = 1
+
+        elif self.current_state == 1:
+            if agents[NK]:
+                self.current_state = 4
+            elif agents['G1']:
+                self.current_state = 5
+            elif self.state_time >= DURATION_stressed:
+                self.current_state = 0
+
+        elif self.current_state == 2:
+            if agents[NK] or agents[T1] or agents[CTL]:
+                self.current_state = 4
+            elif (signals[comp] > 0 and
+                  signals[comp] + signals[Ab1] > Ab1_Lysis_Threshold):
+                self.current_state = 5
+            elif (signals[Ab2] > 0 and
+                  signals[Ab1] + signals[Ab2] > signals['virus']):
+                self.current_state = 3
+
+        elif self.current_state == 3:
+            if agents[NK] or agents[T1] or agents[CTL]:
+                self.current_state = 4
+            elif agents['MP1'] and signals[Ab2] > 0:
+                self.current_state = 5
+
+        elif self.current_state == 4 or self.current_state == 5:
+            if agents[PC] >= 2 and self.scavenged:
+                self.current_state = 6
+
+        elif self.current_state == 6:
+            if self.state_time > DelayRegenerationTime:
+                self.current_state = 0
+
+        if old_state != self.current_state:
+            self.state_time = 0
+        else:
+            self.state_time += 1
+
+    def emit(self):
+        if self.current_state == 0 or self.current_state == 6:
+            return {}
+        if self.current_state == 1:
+            return {PK1: self.signal_level}
+        if self.current_state == 2 or self.current_state == 3:
+            return {PK1: self.signal_level, 'virus': self.signal_level}
+        if self.current_state == 4:
+            return {apop: self.signal_level}
+        if self.current_state == 5:
+            return {necro: self.signal_level}

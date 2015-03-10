@@ -13,10 +13,10 @@ import agent
 from BIS_constants import *
 
 def test():
-    zone = Zone(20, 20, 20)
-    # zone = Zone(7, 7, 1)
+    # zone = Zone(20, 20, 20)
+    zone = Zone(7, 7, 1)
     zone.populate()
-    zone.animate()
+    zone.animate(frames=20)
 
 class Box:
     def __init__(self):
@@ -54,7 +54,6 @@ class Zone:
         for i in range(height):
             for j in range(width):
                 self.grid[i][j] = Box()
-        self.display_grid = np.zeros([height, width])
 
     def populate(self):
         # Initialize cells in this zone
@@ -65,7 +64,10 @@ class Zone:
         agent_boxes = boxes[:self.cell_count]
         for (x, y) in agent_boxes:
             self.grid[x][y].agents.append(agent.PC1())
-            self.display_grid[x][y] = 1
+        
+        agent_boxes = boxes[:self.cell_count]
+        for (x, y) in boxes[self.cell_count:2*self.cell_count]:
+            self.grid[x][y].agents.append(agent.MP())
 
     def update(self):
 
@@ -73,24 +75,22 @@ class Zone:
         for i in range(self.height):
             for j in range(self.width):
                 new_grid[i][j] = Box()
-                for signal in new_grid[i][j].signals:
-                    new_grid[i][j].signals[signal] = self.grid[i][j].signals[signal]
+                new_grid[i][j].signals = self.grid[i][j].signals
+                # for signal in new_grid[i][j].signals:
+                    # new_grid[i][j].signals[signal] = self.grid[i][j].signals[signal]
         
-        new_display_grid = np.zeros([self.height, self.width])
         for i in xrange(self.height):
             for j in xrange(self.width):
                 for agt in self.grid[i][j].agents:
-                    x, y = agt.probe([])  # TODO: pass surrounding boxes
+                    x, y = agt.probe(self.neighborhood(i, j))  # TODO: pass surrounding boxe
+                    agt.update()
                     new_grid[(i + x) % self.height][(j + y) % self.width].agents.append(agt)
-                    new_display_grid[(i + x) % self.height][(j + y) % self.width] = 1  # TODO: use agent type number instead
-                                                        # TODO: account for stacked agents
                     new_signals = agt.emit()
 
                     for signal in new_signals:
                         new_grid[(i + x) % self.height][(j + y) % self.width].signals[signal] += new_signals[signal]
 
         self.grid = new_grid
-        self.display_grid = new_display_grid
 
     def diffuse(self):
         """
@@ -156,7 +156,24 @@ class Zone:
     def signal_display(self, signal):
         return np.apply_along_axis(lambda x: x / 100, 0, self.signal_values(signal))
 
-    def animate(self):
+    def display_grid(self):
+        vals = {
+            PC: 1,
+            MP1: 2,
+            MP2: 3,
+            MP0: 4
+        }
+
+        display = np.zeros([self.height, self.width])
+        for i in xrange(self.height):
+            for j in xrange(self.width):
+                if len(self.grid[i][j].agents) > 0:
+                    display[i][j] = vals[self.grid[i][j].agents[0].kind]
+            
+        # TODO: account for stacked agents
+        return display                
+
+    def animate(self, frames=100):
         fig, (agent_ax, signal_ax) = plt.subplots(1, 2, sharey=True)
 
         agent_ax.set_ylim(0, self.grid.shape[0])
@@ -164,7 +181,7 @@ class Zone:
         signal_ax.set_ylim(0, self.grid.shape[0])
         signal_ax.set_xlim(0, self.grid.shape[1])
 
-        agent_mat = agent_ax.matshow(self.display_grid,
+        agent_mat = agent_ax.matshow(self.display_grid(),
                                      vmin=0, vmax=10)
         signal_mat = signal_ax.matshow(self.signal_display(PK1),
                                        vmin=0, vmax=20)
@@ -173,11 +190,11 @@ class Zone:
         def anim_update(tick):
             self.update()
             self.diffuse()
-            agent_mat.set_data(self.display_grid)
+            agent_mat.set_data(self.display_grid())
             signal_mat.set_data(self.signal_display(PK1))
             return agent_mat, signal_mat
 
-        anim = animation.FuncAnimation(fig, anim_update, frames=100,
+        anim = animation.FuncAnimation(fig, anim_update, frames=frames,
                                        interval=500, blit=False)
         anim.save('test.mp4', fps=5, extra_args=['-vcodec', 'libx264'])
 

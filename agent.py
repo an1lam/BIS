@@ -26,6 +26,7 @@ class SignalTracker:
             PC: [],
             DC1: [],
             DC2: [],
+            MP0: [],
             MP1: [],
             MP2: [],
             T: [],
@@ -59,9 +60,9 @@ class Agent(object):
     def probe(self, boxes):
         for box in boxes:
             for agent in box.agents:
-                self.tracker[agent.kind].append(agent)
+                self.tracker.agents[agent.kind].append(agent)
             for signal in box.signals:
-                self.tracker[signal.kind] += signal.value
+                self.tracker.signals[signal] += box.signals[signal]
 
         # TODO: calculate movement
         # Return number of cells to move horiz/vert
@@ -94,10 +95,11 @@ class PC1(Agent):
         self.infected = False
         # TODO: split for multiple signals
         self.signal_level = OutputSignal
+        self.kind = PC
 
-    def update(tracker):
-        signals = tracker.signals
-        agents = tracker.agents
+    def update(self):
+        signals = self.tracker.signals
+        agents = self.tracker.agents
 
         old_state = self.current_state
         if self.current_state == 0:
@@ -168,17 +170,17 @@ class MP(Agent):
         self.zone_time = 0
         self.signal_time = 0
 
+        self.kind = MP0
         # init_state, states, transitions
         # states : list (int)
         # transitions : list (int, int, dict, dict)
         # (src, dst, signals, agents)
 
         self.signal_level = OutputSignal
-        self.displayed_antigen = None
 
-    def update(self, tracker):
-        signals = tracker.signals
-        agents = tracker.agents
+    def update(self):
+        signals = self.tracker.signals
+        agents = self.tracker.agents
 
         old_state = self.current_state
 
@@ -194,8 +196,8 @@ class MP(Agent):
         # Destroy PCs if antibodies or infected cells detected.
         elif self.current_state == 1:
             self.kind = MP1
-            if len(agents[PC1]) > 0:
-                for pc1 in agents[PC1]:
+            if len(agents[PC]) > 0:
+                for pc1 in agents[PC]:
                     if pc1.infected or signals[Ab2] > 0:
                         pc1.alive = False
 
@@ -206,8 +208,8 @@ class MP(Agent):
         # Emit MP2 (dampening) signals. Only scavenge, don't kill.
         elif self.current_state == 2:
             self.kind = MP2
-            if len(agents[PC1]) > 0:
-                for pc1 in agents[PC1]:
+            if len(agents[PC]) > 0:
+                for pc1 in agents[PC]:
                     if not (pc1.alive or pc1.scavenged):
                         pc1.scavenged = True
                 self.current_state = 4
@@ -215,8 +217,8 @@ class MP(Agent):
         # Scavenge, reset lifespan if T Cells with Ab discovered, and kill
         # PCs if Ab2 around. Killing / scavenging extend signal emission time.
         elif self.current_state == 3:
-            if agents[PC1]:
-                for pc1 in agents[PC1]:
+            if agents[PC]:
+                for pc1 in agents[PC]:
                     # Kill Ab2-opsonized cells.
                     if pc1.alive and signals[Ab2] > 0:
                         pc1.alive = False
@@ -292,8 +294,8 @@ class NK(Agent):
                 self.current_state = 1
             self.last_kill_time += 1
         elif self.current_state == 1:
-            if self.agents[PC1] and self.signals[PK1] > self.signals[CK2]:
-                for pc1 in self.agents[PC1]:
+            if self.agents[PC] and self.signals[PK1] > self.signals[CK2]:
+                for pc1 in self.agents[PC]:
                     pc1.alive = False
                     self.num_killed += 1
                     self.last_kill_time = 0

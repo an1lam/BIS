@@ -13,8 +13,8 @@ import agent
 from BIS_constants import *
 
 def test():
-    # zone = Zone(20, 20, 40)
-    zone = Zone(7, 7, 1)
+    zone = Zone(20, 20, 20)
+    # zone = Zone(7, 7, 1)
     zone.populate()
     zone.animate()
 
@@ -176,18 +176,20 @@ class Zone:
         mat = ax.matshow(self.signal_values(signal))
         plt.show()
 
+    def signal_display_func(self, signal):
+        return np.apply_along_axis(lambda x: x / 100, 0, self.signal_values(signal))
+
     
     def animate(self):
         # pdb.set_trace()
-        fig = plt.figure()
+        # fig = plt.figure()
         # ax = plt.axes(xlim=(0, self.width), ylim=(0, self.height))
-        ax = plt.axes()
+        # ax = plt.axes()
         # print type(self.display_grid)
         # print type(self.signal_values(PK1))
         # mat = ax.matshow(self.display_grid)
         # mat = ax.matshow(self.signal_values(PK1))
-        mat = ax.matshow(np.apply_along_axis(lambda x: x / 100, 0, self.signal_values(PK1)), vmin=0, vmax=10)
-        fig.colorbar(mat)
+        # mat = ax.matshow(np.apply_along_axis(lambda x: x / 100, 0, self.signal_values(PK1)), vmin=0, vmax=10)
 
         # sig = np.array([[ 110., 110., 220., 220.],
                         # [ 220., 220., 220., 330.],
@@ -197,9 +199,18 @@ class Zone:
         # sig = np.array([[2, 1, 0], [0, 1, 0]])
         # mat = ax.matshow(sig)
 
-        # fig, (agent_ax, signal_ax) = plt.subplots(1, 2, sharey=True)
-        # agent_mat = agent_ax.matshow(self.display_grid)
-        # signal_mat = signal_ax.matshow(self.signal_display)
+        fig, (agent_ax, signal_ax) = plt.subplots(1, 2, sharey=True)
+
+        agent_ax.set_ylim(0, self.grid.shape[0])
+        agent_ax.set_xlim(0, self.grid.shape[1])
+        signal_ax.set_ylim(0, self.grid.shape[0])
+        signal_ax.set_xlim(0, self.grid.shape[1])
+
+        agent_mat = agent_ax.matshow(self.display_grid,
+                                     vmin=0, vmax=10)
+        signal_mat = signal_ax.matshow(self.signal_display_func(PK1),
+                                       vmin=0, vmax=20)
+        fig.colorbar(signal_mat)
         # pdb.set_trace()
 
         def anim_update(tick):
@@ -207,23 +218,24 @@ class Zone:
             self.diffuse()
             # mat.set_data(self.display_grid)
             # print self.signal_values(PK1)
-            print np.apply_along_axis(lambda x: x / 100, 0, self.signal_values(PK1))
+            # print np.apply_along_axis(lambda x: x / 100, 0, self.signal_values(PK1))
             # mat.set_data(self.signal_values(PK1))
-            mat.set_data(np.apply_along_axis(lambda x: x / 100, 0, self.signal_values(PK1)))
+            # mat.set_data(np.apply_along_axis(lambda x: x / 100, 0, self.signal_values(PK1)))
             # for i in xrange(sig.shape[0]):
                 # for j in xrange(sig.shape[1]):
                     # # sig[i][j] = int(not sig[i][j])
                     # sig[i][j] = random.randint(200, 1100)
             # print sig
             # mat.set_data(sig)
-            # signal_mat.set_data(self.signal_display)
-            # return agent_mat, signal_mat
-            return mat, 
+            agent_mat.set_data(self.display_grid)
+            signal_mat.set_data(self.signal_display_func(PK1))
+            return agent_mat, signal_mat
+            # return mat, 
 
-        anim = animation.FuncAnimation(fig, anim_update, frames=1,
-                                       interval=3000, blit=False)
-        anim.save('test.mp4', fps=30, extra_args=['-vcodec', 'libx264'])
-        plt.show()
+        anim = animation.FuncAnimation(fig, anim_update, frames=100,
+                                       interval=500, blit=False)
+        anim.save('test.mp4', fps=5, extra_args=['-vcodec', 'libx264'])
+        # plt.show()
 
     # def show(self):
     #

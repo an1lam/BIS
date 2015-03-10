@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
-# import pdb
+
+from __future__ import division
+import pdb
 import copy
 import itertools
 import random
@@ -11,7 +13,8 @@ import agent
 from BIS_constants import *
 
 def test():
-    zone = Zone(20, 20, 40)
+    # zone = Zone(20, 20, 40)
+    zone = Zone(7, 7, 1)
     zone.populate()
     zone.animate()
 
@@ -37,18 +40,30 @@ class Box:
         for signal in signals.keys():
             self.signals[signal] += signals[signal]
 
+    def __repr__(self):
+        return "%s\n%s" % (repr(self.agents), repr(self.signals))
+
 
 class Zone:
     def __init__(self, width, height, cell_count):
         self.width = width
         self.height = height
         self.cell_count = cell_count
-        self.grid = [[Box() for i in range(width)] for j in range(height)]
-        self.display_grid = [[0 for i in range(width)] for j in range(height)]
-        self.signal_display = [[0 for i in range(width)] for j in range(height)]
+        # self.grid = [[Box() for i in range(width)] for j in range(height)]
+        # self.display_grid = [[0 for i in range(width)] for j in range(height)]
+        # self.signal_display = [[0 for i in range(width)] for j in range(height)]
+
+        self.grid = np.empty([height, width], dtype=np.object)
+        for i in range(height):
+            for j in range(width):
+                self.grid[i][j] = Box()
+        self.display_grid = np.zeros([height, width])
+        self.signal_display = np.zeros([height, width])
+
 
     def populate(self):
         # Initialize cells in this zone
+
         boxes = list(
             itertools.product(range(self.height), range(self.width)))
         random.shuffle(boxes)
@@ -57,15 +72,41 @@ class Zone:
             self.grid[x][y].agents.append(agent.PC1())
             self.display_grid[x][y] = 1
 
+    def signal_values(self, signal):
+        return np.array([[self.grid[i][j].signals[signal] for j in xrange(self.width)] for i in xrange(self.height)])
+        # vals = np.zeros([self.height, self.width])
+        # for i in xrange(self.height):
+            # for j in xrange(self.
+
+    def neighborhood(self, i, j):
+        """
+        Return Moore neighborhood of a Zone entry.
+
+        Arguments
+        ---------
+        i (int)
+        j (int)
+
+        Returns
+        -------
+        neighborhood (np.ndarray(9,))
+        """
+        roll1 = np.roll(self.grid, self.grid.shape[0] - i + 1, axis=0)
+        roll2 = np.roll(roll1, self.grid.shape[1] - j + 1, axis=1)
+        return roll2[0:3, 0:3].flatten()
+
     def nAvg(self, signal, i, j):
-        grid = np.array(self.grid)
-        neighborhood = grid[(i-1) % self.height:(i+2) % self.height, (j-1) % self.width:(j+2) % self.width].flatten()
-        # return np.mean([box.signals[signal] for box in neighborhood])
-        return 100
+        nhood = self.neighborhood(i, j)
+        return np.mean([box.signals[signal] for box in nhood])
 
     def diffuse(self):
-        new_grid = [[Box() for i in xrange(self.width)] for j in xrange(self.height)]
 
+        new_grid = np.empty([self.height, self.width], dtype=np.object)
+        for i in range(self.height):
+            for j in range(self.width):
+                new_grid[i][j] = Box()
+
+        # pdb.set_trace()
         for i in xrange(self.height):
             for j in xrange(self.width):
                 for signal in self.grid[i][j].signals:
@@ -75,12 +116,20 @@ class Zone:
                     if signal == PK1:
                         self.signal_display[i][j] = new_val
                 new_grid[i][j].agents = self.grid[i][j].agents
+        # pdb.set_trace()
         self.grid = new_grid
 
 
     def update(self):
-        new_grid = [[Box() for i in range(self.width)] for i in range(self.height)]
-        new_display_grid = [[0 for i in range(self.width)] for i in range(self.height)]
+
+        new_grid = np.empty([self.height, self.width], dtype=np.object)
+        for i in range(self.height):
+            for j in range(self.width):
+                new_grid[i][j] = Box()
+                for signal in new_grid[i][j].signals:
+                    new_grid[i][j].signals[signal] = self.grid[i][j].signals[signal]
+        
+        new_display_grid = np.zeros([self.height, self.width])
         for i in xrange(self.height):
             for j in xrange(self.width):
                 for agt in self.grid[i][j].agents:
@@ -90,8 +139,12 @@ class Zone:
                                                         # TODO: account for stacked agents
                     new_signals = agt.emit()
                     # pdb.set_trace()
+
+                    # FIX: add new_signal to old grid value not new grid
                     for signal in new_signals:
                         new_grid[(i + x) % self.height][(j + y) % self.width].signals[signal] += new_signals[signal]
+
+        # pdb.set_trace()
         self.grid = new_grid
         self.display_grid = new_display_grid
 
@@ -117,26 +170,58 @@ class Zone:
     #     ax.set_yticks([])
     #     plt.savefig("test")
 
-    def animate(self):
-        # fig = plt.figure()
-        # ax = plt.axes(xlim=(0, self.width), ylim=(0, self.height))
-        # ax = plt.axes()
-        # print self.display_grid
-        # mat = ax.matshow(self.display_grid)
+    def plot_signal(self, signal):
+        fig = plt.figure()
+        ax = plt.axes()
+        mat = ax.matshow(self.signal_values(signal))
+        plt.show()
 
-        fig, (agent_ax, signal_ax) = plt.subplots(1, 2, sharey=True)
-        agent_mat = agent_ax.matshow(self.display_grid)
-        signal_mat = signal_ax.matshow(self.signal_display)
+    
+    def animate(self):
+        # pdb.set_trace()
+        fig = plt.figure()
+        # ax = plt.axes(xlim=(0, self.width), ylim=(0, self.height))
+        ax = plt.axes()
+        # print type(self.display_grid)
+        # print type(self.signal_values(PK1))
+        # mat = ax.matshow(self.display_grid)
+        # mat = ax.matshow(self.signal_values(PK1))
+        mat = ax.matshow(np.apply_along_axis(lambda x: x / 100, 0, self.signal_values(PK1)), vmin=0, vmax=10)
+        fig.colorbar(mat)
+
+        # sig = np.array([[ 110., 110., 220., 220.],
+                        # [ 220., 220., 220., 330.],
+                        # [ 220., 220., 220., 330.],
+                        # [ 110., 110.,   0., 110.]])
+
+        # sig = np.array([[2, 1, 0], [0, 1, 0]])
+        # mat = ax.matshow(sig)
+
+        # fig, (agent_ax, signal_ax) = plt.subplots(1, 2, sharey=True)
+        # agent_mat = agent_ax.matshow(self.display_grid)
+        # signal_mat = signal_ax.matshow(self.signal_display)
+        # pdb.set_trace()
 
         def anim_update(tick):
             self.update()
             self.diffuse()
-            agent_mat.set_data(self.display_grid)
-            signal_mat.set_data(self.signal_display)
-            return agent_mat, signal_mat
+            # mat.set_data(self.display_grid)
+            # print self.signal_values(PK1)
+            print np.apply_along_axis(lambda x: x / 100, 0, self.signal_values(PK1))
+            # mat.set_data(self.signal_values(PK1))
+            mat.set_data(np.apply_along_axis(lambda x: x / 100, 0, self.signal_values(PK1)))
+            # for i in xrange(sig.shape[0]):
+                # for j in xrange(sig.shape[1]):
+                    # # sig[i][j] = int(not sig[i][j])
+                    # sig[i][j] = random.randint(200, 1100)
+            # print sig
+            # mat.set_data(sig)
+            # signal_mat.set_data(self.signal_display)
+            # return agent_mat, signal_mat
+            return mat, 
 
-        anim = animation.FuncAnimation(fig, anim_update, frames=200,
-                                       interval=500, blit=False)
+        anim = animation.FuncAnimation(fig, anim_update, frames=1,
+                                       interval=3000, blit=False)
         anim.save('test.mp4', fps=30, extra_args=['-vcodec', 'libx264'])
         plt.show()
 

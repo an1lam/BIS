@@ -9,14 +9,15 @@ import random
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import animation
+from matplotlib import gridspec
 import agent
 from BIS_constants import *
 
-def test():
+def test(width=20, height=20, num_cells=10, fname=None):
     # zone = Zone(20, 20, 20)
-    zone = Zone(20, 20, 10)
+    zone = Zone(width, height, num_cells)
     zone.populate()
-    zone.animate()
+    zone.animate(fname)
 
 class Box:
     def __init__(self):
@@ -57,11 +58,11 @@ class Zone:
         self.grid = np.empty([height, width], dtype=np.object)
         for i in range(height):
             for j in range(width):
-                if i == height / 2 and j == width / 2:
-                    self.grid[i][j] = Box()
-                    self.grid[i][j].signals[virus] = 1000
-                else:
-                    self.grid[i][j] = Box()
+                self.grid[i][j] = Box()
+
+        mid_i = int(height / 2)
+        mid_j = int(width / 2)
+        self.grid[mid_i][mid_j].signals[virus] = 1000
 
     def populate(self):
         # Initialize cells in this zone
@@ -91,9 +92,10 @@ class Zone:
                 for agt_type in self.grid[i][j].agents.keys():
                     for agt in self.grid[i][j].agents[agt_type]:
                         (x, y) = agt.probe(self.neighborhood(i, j))
-                        agt.update()
-                        new_grid[(i + x) % self.height][(j + y) % self.width].agents[agt_type].append(agt)
-                        new_signals = agt.emit()
+                        new_agt = copy.deepcopy(agt)
+                        new_agt.update()
+                        new_grid[(i + x) % self.height][(j + y) % self.width].agents[agt_type].append(new_agt)
+                        new_signals = new_agt.emit()
 
                         for signal in new_signals:
                             new_grid[(i + x) % self.height][(j + y) % self.width].signals[signal] += new_signals[signal]
@@ -195,19 +197,27 @@ class Zone:
         # TODO: account for stacked agents
         return display
 
-    def animate(self, frames=100):
-        fig, (agent_ax, signal_ax) = plt.subplots(1, 2, sharey=True)
+    def animate(self, fname=None, frames=100):
+        # fig, (agent_ax, signal_ax) = plt.subplots(1, 2, sharey=True)
+        fig, (agent_ax, signal_ax) = plt.subplots(1, 2)
 
-        agent_ax.set_ylim(0, self.grid.shape[0])
-        agent_ax.set_xlim(0, self.grid.shape[1])
-        signal_ax.set_ylim(0, self.grid.shape[0])
-        signal_ax.set_xlim(0, self.grid.shape[1])
+        fig = plt.figure()
+        gs = gridspec.GridSpec(1, 2, width_ratios=[1,1.26])
+        agent_ax = plt.subplot(gs[0])
+        signal_ax = plt.subplot(gs[1])
 
-        agent_mat = agent_ax.matshow(self.display_grid(),
-                                     vmin=0, vmax=10)
-        signal_mat = signal_ax.matshow(self.signal_display(PK1),
-                                       vmin=0, vmax=20)
-        fig.colorbar(signal_mat)
+        agent_ax.set_ylim(-0.5, self.grid.shape[0] - 0.5)
+        agent_ax.set_xlim(-0.5, self.grid.shape[1] - 0.5)
+        signal_ax.set_ylim(-0.5, self.grid.shape[0] - 0.5)
+        signal_ax.set_xlim(-0.5, self.grid.shape[1] - 0.5)
+
+        agent_mat = agent_ax.imshow(self.display_grid(),
+                                     vmin=0, vmax=10, aspect='equal',
+                                     interpolation='nearest', origin='upper')
+        signal_mat = signal_ax.imshow(self.signal_display(virus),
+                                       vmin=0, vmax=20, aspect='equal',
+                                       interpolation='nearest', origin='upper')
+        fig.colorbar(signal_mat, shrink=.5)
 
         def anim_update(tick):
             self.update()
@@ -217,8 +227,12 @@ class Zone:
             return agent_mat, signal_mat
 
         anim = animation.FuncAnimation(fig, anim_update, frames=frames,
-                                       interval=500, blit=False)
-        anim.save('test.mp4', fps=5, extra_args=['-vcodec', 'libx264'])
+                                       interval=3000, blit=False)
+
+        if fname:
+            anim.save(fname, fps=5, extra_args=['-vcodec', 'libx264'])
+        else:
+            plt.show()
 
 
 def main():

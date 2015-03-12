@@ -58,7 +58,7 @@ class Agent(object):
     def probe(self, boxes):
         for box in boxes:
             for agt_type in box.agents:
-                self.tracker.agents[agt_type] = box.agents[agt_type]
+                self.tracker.agents[agt_type] += box.agents[agt_type]
             for signal in box.signals:
                 self.tracker.signals[signal] += box.signals[signal]
 
@@ -106,10 +106,10 @@ class PC1(Agent):
 
         old_state = self.current_state
         if self.current_state == 0:
-            self.infected = False
-            self.alive = True
-            if signals['virus'] > signals[Ab1] + signals[Ab2]:
-                self.infected = True
+            # self.infected = False
+            # self.alive = True
+            if signals['virus'] > Viral_Infection_Threshold:
+                # self.infected = True
                 self.current_state = 2
             elif signals[necro] > 0:
                 self.current_state = 1
@@ -128,14 +128,16 @@ class PC1(Agent):
             elif (signals[comp] > 0 and
                   signals[comp] + signals[Ab1] > Ab1_Lysis_Threshold):
                 self.current_state = 5
-            elif (signals[Ab2] > 0 and
-                  signals[Ab1] + signals[Ab2] > signals['virus']):
+            # elif (signals[Ab2] > 0 and
+                  # signals[Ab1] + signals[Ab2] > signals['virus']):
+            elif random.randint(1,10) > 8:
                 self.current_state = 3
 
         elif self.current_state == 3:
             if agents[NK_agt] or agents[T1] or agents[CTL]:
                 self.current_state = 4
-            elif agents[MP1] and signals[Ab2] > 0:
+            # elif agents[MP1] and signals[Ab2] > 0:
+            elif agents[MP1]:
                 self.current_state = 5
 
         elif self.current_state == 4 or self.current_state == 5:
@@ -162,6 +164,12 @@ class PC1(Agent):
             return {apop: self.signal_level}
         if self.current_state == 5:
             return {necro: self.signal_level}
+
+    def alive(self):
+        return self.current_state != 4 and self.current_state != 5 and self.current_state != 6
+
+    def infected(self):
+        return self.current_state == 1 or self.current_state == 2 or self.current_state == 3
 
 
 class MP(Agent):
@@ -203,7 +211,9 @@ class MP(Agent):
             if len(agents[PC_agt]) > 0:
                 for pc1 in agents[PC_agt]:
                     if pc1.infected or signals[Ab2] > 0:
-                        pc1.alive = False
+                        print "MP Killing PC_agt"
+                        # pc1.alive = False
+                        pc1.necro()
 
                 # Reset signal time and therefore keep emitting MK1.
                 self.signal_time = -1
@@ -302,7 +312,10 @@ class NK(Agent):
                 self.current_state = 1
             self.last_kill_time += 1
         elif self.current_state == 1:
+            if self.tracker.agents[PC_agt]:
+               print "PC in Moore Neighborhood of NK" 
             if self.tracker.agents[PC_agt] and self.tracker.signals[PK1] > self.tracker.signals[CK2]:
+                print "Killing"
                 for pc1 in self.tracker.agents[PC_agt]:
                     pc1.alive = False
                     self.num_killed += 1

@@ -13,7 +13,9 @@ comp = 'comp'
 G1 = 'G1'
 
 # Agent types
-PC = 'PC'
+PC_agt = 'PC'
+MP_agt = 'MP'
+NK_agt = 'NK'
 DC1 = 'DC1'
 DC2 = 'DC2'
 MP0 = 'MP0'

@@ -14,13 +14,17 @@ from BIS_constants import *
 
 def test():
     # zone = Zone(20, 20, 20)
-    zone = Zone(7, 7, 1)
+    zone = Zone(20, 20, 10)
     zone.populate()
-    zone.animate(frames=20)
+    zone.animate()
 
 class Box:
     def __init__(self):
-        self.agents = []
+        self.agents = {
+            PC_agt: [],
+            MP_agt: [],
+            NK_agt: [],
+        }
         self.signals = {
             PK1: 0,
             virus: 0,
@@ -53,7 +57,11 @@ class Zone:
         self.grid = np.empty([height, width], dtype=np.object)
         for i in range(height):
             for j in range(width):
-                self.grid[i][j] = Box()
+                if i == height / 2 and j == width / 2:
+                    self.grid[i][j] = Box()
+                    self.grid[i][j].signals[virus] = 1000
+                else:
+                    self.grid[i][j] = Box()
 
     def populate(self):
         # Initialize cells in this zone
@@ -63,32 +71,32 @@ class Zone:
         random.shuffle(boxes)
         agent_boxes = boxes[:self.cell_count]
         for (x, y) in agent_boxes:
-            self.grid[x][y].agents.append(agent.PC1())
-        
-        agent_boxes = boxes[:self.cell_count]
+            self.grid[x][y].agents[PC_agt].append(agent.PC1())
+
         for (x, y) in boxes[self.cell_count:2*self.cell_count]:
-            self.grid[x][y].agents.append(agent.MP())
+            self.grid[x][y].agents[MP_agt].append(agent.MP())
+
+        for (x, y) in boxes[2*self.cell_count:3*self.cell_count]:
+            self.grid[x][y].agents[NK_agt].append(agent.NK())
 
     def update(self):
-
         new_grid = np.empty([self.height, self.width], dtype=np.object)
         for i in range(self.height):
             for j in range(self.width):
                 new_grid[i][j] = Box()
                 new_grid[i][j].signals = self.grid[i][j].signals
-                # for signal in new_grid[i][j].signals:
-                    # new_grid[i][j].signals[signal] = self.grid[i][j].signals[signal]
-        
+
         for i in xrange(self.height):
             for j in xrange(self.width):
-                for agt in self.grid[i][j].agents:
-                    x, y = agt.probe(self.neighborhood(i, j))  # TODO: pass surrounding boxe
-                    agt.update()
-                    new_grid[(i + x) % self.height][(j + y) % self.width].agents.append(agt)
-                    new_signals = agt.emit()
+                for agt_type in self.grid[i][j].agents.keys():
+                    for agt in self.grid[i][j].agents[agt_type]:
+                        (x, y) = agt.probe(self.neighborhood(i, j))
+                        agt.update()
+                        new_grid[(i + x) % self.height][(j + y) % self.width].agents[agt_type].append(agt)
+                        new_signals = agt.emit()
 
-                    for signal in new_signals:
-                        new_grid[(i + x) % self.height][(j + y) % self.width].signals[signal] += new_signals[signal]
+                        for signal in new_signals:
+                            new_grid[(i + x) % self.height][(j + y) % self.width].signals[signal] += new_signals[signal]
 
         self.grid = new_grid
 
@@ -105,9 +113,9 @@ class Zone:
             for j in xrange(self.width):
                 for signal in self.grid[i][j].signals:
                     new_grid[i][j].signals[signal] = self.calc_diffuse(signal, i, j)
-                
+
                 new_grid[i][j].agents = self.grid[i][j].agents
-        
+
         self.grid = new_grid
 
     def calc_diffuse(self, signal, i, j):
@@ -117,7 +125,7 @@ class Zone:
         curr_val = self.grid[i][j].signals[signal]
         return (EvapRate * (curr_val +
                 DiffusionConstant * (self.nAvg(signal, i, j) - curr_val)))
-    
+
     def nAvg(self, signal, i, j):
         """
         Compute the average value of a signal in a cell's Moore neighborhood
@@ -143,7 +151,7 @@ class Zone:
         return roll2[0:3, 0:3].flatten()
 
     def signal_values(self, signal):
-        return np.array([[self.grid[i][j].signals[signal] 
+        return np.array([[self.grid[i][j].signals[signal]
                           for j in xrange(self.width)]
                          for i in xrange(self.height)])
 
@@ -158,20 +166,34 @@ class Zone:
 
     def display_grid(self):
         vals = {
-            PC: 1,
-            MP1: 2,
-            MP2: 3,
-            MP0: 4
+            'livePC': 1,
+            'infectedPC': 9,
+            'deadPC': 10,
+            MP1: 4,
+            MP2: 5,
+            MP0: 6,
+            NK_agt: 8
         }
 
         display = np.zeros([self.height, self.width])
         for i in xrange(self.height):
             for j in xrange(self.width):
-                if len(self.grid[i][j].agents) > 0:
-                    display[i][j] = vals[self.grid[i][j].agents[0].kind]
-            
+                if len(self.grid[i][j].agents[MP_agt]) > 0:
+                    display[i][j] = vals[self.grid[i][j].agents[MP_agt][0].kind]
+                elif len(self.grid[i][j].agents[PC_agt]) > 0:
+                    if self.grid[i][j].agents[PC_agt][0].alive:
+                        display[i][j] = vals['livePC']
+                    if self.grid[i][j].agents[PC_agt][0].infected:
+                        display[i][j] = vals['infectedPC']
+                    if not self.grid[i][j].agents[PC_agt][0].alive:
+                        display[i][j] = vals['deadPC']
+                elif len(self.grid[i][j].agents[NK_agt]) > 0:
+                    display[i][j] = vals[NK_agt]
+
+
+
         # TODO: account for stacked agents
-        return display                
+        return display
 
     def animate(self, frames=100):
         fig, (agent_ax, signal_ax) = plt.subplots(1, 2, sharey=True)
@@ -191,7 +213,7 @@ class Zone:
             self.update()
             self.diffuse()
             agent_mat.set_data(self.display_grid())
-            signal_mat.set_data(self.signal_display(PK1))
+            signal_mat.set_data(self.signal_display(virus))
             return agent_mat, signal_mat
 
         anim = animation.FuncAnimation(fig, anim_update, frames=frames,

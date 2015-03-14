@@ -1,5 +1,6 @@
 import random
 from BIS_constants import *
+import pdb
 
 
 class Signal:
@@ -39,6 +40,9 @@ class SignalTracker:
             portal: []
         }
 
+    def __repr__(self):
+        return "Virus: %d\tPK1: %d\n" % (self.signals[virus], self.signals[PK1]) + str(self.agents[MP_agt]) + '\n' + str(self.agents[NK_agt])
+
     def reset(self):
         for signal in self.signals:
             self.signals[signal] = 0
@@ -54,19 +58,28 @@ class Agent(object):
         self.tracker = SignalTracker()
         self.signals = {}  # Dict {state: (signal, value)}
         self.kind = ""
+        self.next_x = 0
+        self.next_y = 0
 
     def probe(self, boxes):
+        self.tracker = SignalTracker()
         for box in boxes:
             for agt_type in box.agents:
-                self.tracker.agents[agt_type] += box.agents[agt_type]
+                for agt in box.agents[agt_type]:
+                    if agt is not self:
+                        self.tracker.agents[agt_type].append(agt)
+                # self.tracker.agents[agt_type] += box.agents[agt_type]
             for signal in box.signals:
                 self.tracker.signals[signal] += box.signals[signal]
 
         # TODO: calculate movement
         # Return number of cells to move horiz/vert
-        x = random.randint(-1, 1)
-        y = random.randint(-1, 1)
-        return x, y
+        self.next_x = random.randint(-1, 1)
+        self.next_y = random.randint(-1, 1)
+        # return x, y
+
+    def move(self):
+        return self.next_x, self.next_y
 
     def update(self):
         # update fsm
@@ -89,15 +102,18 @@ class PC1(Agent):
         # states : list (int)
         # transitions : list (int, int, dict, dict)
         # (src, dst, signals, agents)
-        self.scavenged = False
-        self.alive = True
-        self.infected = False
+        # self.scavenged = False
+        # self.alive = True
+        # self.infected = False
         # TODO: split for multiple signals
         self.signal_level = OutputSignal
         self.kind = PC_agt
 
-    def probe(self, boxes):
-        super(PC1, self).probe(boxes)
+    # def probe(self, boxes):
+        # super(PC1, self).probe(boxes)
+        # return 0, 0
+
+    def move(self):
         return 0, 0
 
     def update(self):
@@ -105,9 +121,11 @@ class PC1(Agent):
         agents = self.tracker.agents
 
         old_state = self.current_state
+        # pdb.set_trace()
         if self.current_state == 0:
             # self.infected = False
             # self.alive = True
+            # if signals['virus'] > 0:
             if signals['virus'] > Viral_Infection_Threshold:
                 # self.infected = True
                 self.current_state = 2
@@ -116,15 +134,24 @@ class PC1(Agent):
 
         elif self.current_state == 1:
             if agents[NK_agt]:
-                self.current_state = 4
-            elif agents[G1]:
-                self.current_state = 5
-            elif self.state_time >= DURATION_stressed:
+                # print "Found NK"
+                for nk in agents[NK_agt]:
+                    if nk.make_kill():
+                        # print "NK killing PC_agt"
+                        self.current_state = 4
+                        break
+            # elif agents[G1]:
+                # self.current_state = 5
+            elif self.state_time >= DURATION_Stressed:
                 self.current_state = 0
 
         elif self.current_state == 2:
             if agents[NK_agt] or agents[T1] or agents[CTL]:
-                self.current_state = 4
+                for nk in agents[NK_agt]:
+                    if nk.make_kill():
+                        # print "NK killing PC_agt"
+                        self.current_state = 4
+                        break
             elif (signals[comp] > 0 and
                   signals[comp] + signals[Ab1] > Ab1_Lysis_Threshold):
                 self.current_state = 5
@@ -135,20 +162,37 @@ class PC1(Agent):
 
         elif self.current_state == 3:
             if agents[NK_agt] or agents[T1] or agents[CTL]:
-                self.current_state = 4
+                # pdb.set_trace()
+                for nk in agents[NK_agt]:
+                    if nk.make_kill():
+                        # print "NK killing PC_agt"
+                        self.current_state = 4
+                        break
+                # self.current_state = 4
             # elif agents[MP1] and signals[Ab2] > 0:
-            elif agents[MP1]:
+            # elif agents[MP1]:
+            elif MP1 in [agent.kind for agent in agents[MP_agt]]:
                 self.current_state = 5
 
         elif self.current_state == 4 or self.current_state == 5:
-            if len(agents[PC_agt]) >= 2 and self.scavenged:
-                self.current_state = 6
+            # pdb.set_trace()
+            # if len(agents[PC_agt]) >= 2 and self.scavenged:
+            # if self.state_time > 3:
+            # if any([agt.scavenging() for agt in agents[MP_agt]]):
+            if len([agt for agt in agents[PC_agt] if agt.alive()]) >= 2:
+                for mp in agents[MP_agt]:
+                    if mp.scavenging():
+                        # print "scavenged"
+                        self.current_state = 6
+                        break
 
         elif self.current_state == 6:
             if self.state_time > DelayRegenerationTime:
                 self.current_state = 0
 
         if old_state != self.current_state:
+            # if self.current_state == 0:
+                # pdb.set_trace()
             self.state_time = 0
         else:
             self.state_time += 1
@@ -159,7 +203,7 @@ class PC1(Agent):
         if self.current_state == 1:
             return {PK1: self.signal_level}
         if self.current_state == 2 or self.current_state == 3:
-            return {PK1: self.signal_level, 'virus': self.signal_level}
+            return {PK1: self.signal_level, 'virus': Viral_Output_Signal}
         if self.current_state == 4:
             return {apop: self.signal_level}
         if self.current_state == 5:
@@ -190,6 +234,12 @@ class MP(Agent):
 
         self.signal_level = OutputSignal
 
+    def move(self):
+        if self.current_state == 5:
+            return 0, 0
+        else:
+            return random.randint(-1,1), random.randint(-1,1)
+
     def update(self):
         signals = self.tracker.signals
         agents = self.tracker.agents
@@ -209,11 +259,11 @@ class MP(Agent):
         elif self.current_state == 1:
             self.kind = MP1
             if len(agents[PC_agt]) > 0:
-                for pc1 in agents[PC_agt]:
-                    if pc1.infected or signals[Ab2] > 0:
-                        print "MP Killing PC_agt"
+                # for pc1 in agents[PC_agt]:
+                    # if pc1.infected() or signals[Ab2] > 0:
+                        # print "MP killing PC_agt"
                         # pc1.alive = False
-                        pc1.necro()
+                        # pc1.necro()
 
                 # Reset signal time and therefore keep emitting MK1.
                 self.signal_time = -1
@@ -223,9 +273,9 @@ class MP(Agent):
         elif self.current_state == 2:
             self.kind = MP2
             if len(agents[PC_agt]) > 0:
-                for pc1 in agents[PC_agt]:
-                    if not (pc1.alive or pc1.scavenged):
-                        pc1.scavenged = True
+                # for pc1 in agents[PC_agt]:
+                    # if not (pc1.alive() or pc1.scavenged):
+                        # pc1.scavenged = True
                 self.current_state = 4
 
         # Scavenge, reset lifespan if T Cells with Ab discovered, and kill
@@ -234,14 +284,14 @@ class MP(Agent):
             if agents[PC_agt]:
                 for pc1 in agents[PC_agt]:
                     # Kill Ab2-opsonized cells.
-                    if pc1.alive and signals[Ab2] > 0:
-                        pc1.alive = False
+                    if pc1.alive() and signals[Ab2] > 0:
+                        # pc1.alive = False
                         self.signal_time = -1
 
                     # Scavenge dead, un-scavenged PC cells.
-                    elif not (pc1.alive or pc1.scavenged):
-                        pc1.scavenged = True
-                        self.signal_time = -1
+                    # elif not (pc1.alive() or pc1.scavenged):
+                        # pc1.scavenged = True
+                        # self.signal_time = -1
 
             elif len(agents[T1]) > 0:
                 self.zone_time = 0
@@ -280,6 +330,16 @@ class MP(Agent):
         elif self.current_state == 5:
             return {apop: self.signal_level}
 
+    def scavenging(self):
+        if self.current_state == 1 or self.current_state == 2:
+            self.current_state += 2
+            self.signal_time = 0
+            return True
+        elif self.current_state == 3 or self.current_state == 4:
+            return True
+        else:
+            return False
+
 
 # A natural killer cell model, typically found in the innate immune system
 class NK(Agent):
@@ -301,6 +361,12 @@ class NK(Agent):
         self.signal_level = OutputSignal
         self.displayed_antigen = None
 
+    def move(self):
+        if self.current_state == 2:
+            return 0, 0
+        else:
+            return random.randint(-1,1), random.randint(-1,1)
+
     def update(self):
 
         old_state = self.current_state
@@ -310,18 +376,20 @@ class NK(Agent):
         if self.current_state == 0:
             if self.tracker.signals[PK1]:
                 self.current_state = 1
-            self.last_kill_time += 1
+            # self.last_kill_time += 1
         elif self.current_state == 1:
-            if self.tracker.agents[PC_agt]:
-               print "PC in Moore Neighborhood of NK" 
-            if self.tracker.agents[PC_agt] and self.tracker.signals[PK1] > self.tracker.signals[CK2]:
-                print "Killing"
-                for pc1 in self.tracker.agents[PC_agt]:
-                    pc1.alive = False
-                    self.num_killed += 1
-                    self.last_kill_time = 0
-                    break
-            else:
+            # if any([agt.alive() for agt in self.tracker.agents[PC_agt]]):
+            # # if self.tracker.agents[PC_agt] and self.tracker.signals[PK1] > self.tracker.signals[CK2]:
+                # print "NK killing PC_agt"
+                # for pc1 in self.tracker.agents[PC_agt]:
+                    # # pc1.alive = False
+                    # self.num_killed += 1
+                    # self.last_kill_time = 0
+                    # break
+            # else:
+                # self.last_kill_time += 1
+
+            if self.num_killed > 0:
                 self.last_kill_time += 1
 
             if self.state_time > DURATION_NK_CK1:
@@ -339,6 +407,15 @@ class NK(Agent):
                 self.zone_time > LIFE_NK_Zone1 or
                 self.last_kill_time > NUM_TICKS_NK_NO_KILL):
             self.current_state = 2
+
+    def make_kill(self):
+        # TODO: check PK1 and CK2 levels
+        if self.current_state == 1:
+            self.num_killed += 1
+            self.last_kill_time = 0
+            return True
+        else:
+            return False
 
     def emit(self):
         if self.current_state == 0:

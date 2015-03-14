@@ -116,6 +116,7 @@ Ticks_Tumor_Grows = 15
 Too_Many_Tumor_Neighbors = 64
 Tumor_Mult_Freq = 5
 Viral_Infection_Threshold = 50
+Viral_Output_Signal = 60
 World1XSize = 100
 World1YSize = 100
 World2XSize = 70

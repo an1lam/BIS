@@ -62,7 +62,7 @@ class Zone:
 
         mid_i = int(height / 2)
         mid_j = int(width / 2)
-        self.grid[mid_i][mid_j].signals[virus] = 1000
+        self.grid[mid_i][mid_j].signals[virus] = 50
 
     def populate(self):
         # Initialize cells in this zone
@@ -71,7 +71,21 @@ class Zone:
             itertools.product(range(self.height), range(self.width)))
         random.shuffle(boxes)
         agent_boxes = boxes[:self.cell_count]
-        for (x, y) in agent_boxes:
+        # for (x, y) in agent_boxes:
+        mid_x = int(self.width/2)
+        for x in xrange(self.width):
+            for y in [0, 1, mid_x, mid_x+1]:
+                self.grid[x][y].agents[PC_agt].append(agent.PC1())
+
+        mid_y = int(self.height/2)
+        for y in xrange(self.height):
+            for x in [0, 1, mid_y, mid_y + 1]:
+                if not self.grid[x][y].agents[PC_agt]:
+                    self.grid[x][y].agents[PC_agt].append(agent.PC1())
+
+        self.grid[mid_x][mid_y].agents[PC_agt][0].current_state = 3 
+            
+        for x, y in [(0, 0), (int(self.width/2), int(self.height/2))]:
             self.grid[x][y].agents[PC_agt].append(agent.PC1())
 
         for (x, y) in boxes[self.cell_count:2*self.cell_count]:
@@ -91,11 +105,16 @@ class Zone:
             for j in xrange(self.width):
                 for agt_type in self.grid[i][j].agents.keys():
                     for agt in self.grid[i][j].agents[agt_type]:
-                        (x, y) = agt.probe(self.neighborhood(i, j))
-                        new_agt = copy.deepcopy(agt)
-                        new_agt.update()
-                        new_grid[(i + x) % self.height][(j + y) % self.width].agents[agt_type].append(new_agt)
-                        new_signals = new_agt.emit()
+                        agt.probe(self.neighborhood(i, j))
+
+        for i in xrange(self.height):
+            for j in xrange(self.width):
+                for agt_type in self.grid[i][j].agents.keys():
+                    for agt in self.grid[i][j].agents[agt_type]:
+                        x, y = agt.move()
+                        agt.update()
+                        new_grid[(i + x) % self.height][(j + y) % self.width].agents[agt_type].append(agt)
+                        new_signals = agt.emit()
 
                         for signal in new_signals:
                             new_grid[(i + x) % self.height][(j + y) % self.width].signals[signal] += new_signals[signal]
@@ -164,7 +183,7 @@ class Zone:
         plt.show()
 
     def signal_display(self, signal):
-        return np.apply_along_axis(lambda x: x / 100, 0, self.signal_values(signal))
+        return np.apply_along_axis(lambda x: x / 10, 0, self.signal_values(signal))
 
     def display_grid(self):
         vals = {
@@ -183,11 +202,11 @@ class Zone:
                 if len(self.grid[i][j].agents[MP_agt]) > 0:
                     display[i][j] = vals[self.grid[i][j].agents[MP_agt][0].kind]
                 elif len(self.grid[i][j].agents[PC_agt]) > 0:
-                    if self.grid[i][j].agents[PC_agt][0].alive:
+                    if self.grid[i][j].agents[PC_agt][0].alive():
                         display[i][j] = vals['livePC']
-                    if self.grid[i][j].agents[PC_agt][0].infected:
+                    if self.grid[i][j].agents[PC_agt][0].infected():
                         display[i][j] = vals['infectedPC']
-                    if not self.grid[i][j].agents[PC_agt][0].alive:
+                    if not self.grid[i][j].agents[PC_agt][0].alive():
                         display[i][j] = vals['deadPC']
                 elif len(self.grid[i][j].agents[NK_agt]) > 0:
                     display[i][j] = vals[NK_agt]
@@ -212,25 +231,30 @@ class Zone:
         signal_ax.set_xlim(-0.5, self.grid.shape[1] - 0.5)
 
         agent_mat = agent_ax.imshow(self.display_grid(),
-                                     vmin=0, vmax=10, aspect='equal',
-                                     interpolation='nearest', origin='upper')
+                                    vmin=0, vmax=10, aspect='equal',
+                                    interpolation='nearest', origin='upper')
         signal_mat = signal_ax.imshow(self.signal_display(virus),
-                                       vmin=0, vmax=20, aspect='equal',
-                                       interpolation='nearest', origin='upper')
+                                      vmin=0, vmax=20, aspect='equal',
+                                      interpolation='nearest', origin='upper')
         fig.colorbar(signal_mat, shrink=.5)
 
         def anim_update(tick):
+            # print tick
             self.update()
             self.diffuse()
             agent_mat.set_data(self.display_grid())
             signal_mat.set_data(self.signal_display(virus))
             return agent_mat, signal_mat
 
+        if fname:
+            interval = 100
+        else:
+            interval = 3000
         anim = animation.FuncAnimation(fig, anim_update, frames=frames,
-                                       interval=3000, blit=False)
+                                       interval=interval, blit=False)
 
         if fname:
-            anim.save(fname, fps=5, extra_args=['-vcodec', 'libx264'])
+            anim.save(fname, fps=3, extra_args=['-vcodec', 'libx264'])
         else:
             plt.show()
 

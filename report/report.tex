@@ -1,0 +1,60 @@
+%% report.tex
+%% 16 March 2015
+%% by Matthew Stone and Stephen Malina
+
+\documentclass[10pt,conference]{IEEEtran}
+
+\usepackage[cmex10]{amsmath}
+\usepackage{cite}
+\renewcommand{\citedash}{--}% Default is ]--[
+\renewcommand{\citepunct}{, }% Default is ], [
+
+% \usepackage{algorithm}
+% \usepackage[noend]{algpseudocode}
+% \usepackage{array}
+\usepackage{textcomp}
+\usepackage{url}
+
+\usepackage[pdftex]{graphicx}
+\graphicspath{{./figures/}}
+\DeclareGraphicsExtensions{.pdf,.jpg,.png}
+
+\usepackage[caption=false,font=footnotesize]{subfig}
+
+\newcommand{\vocab}[1]{\textit{#1}}
+
+\begin{document}
+
+\title{A Modern Implementation of the \\
+Basic Immune Simulator}
+
+\author{\IEEEauthorblockN{Matt Stone, Stephen Malina}
+\IEEEauthorblockA{Department of Computer Science\\
+Dartmouth College}}
+
+\maketitle
+\thispagestyle{plain}
+\pagestyle{plain}
+
+\section{Introduction}
+\noindent
+intro \cite{folcik2007}
+
+\section{Methods}
+\noindent
+method
+
+\section{Results}
+\noindent
+result
+
+\section{Discussion}
+\noindent
+discuss
+
+\bibliographystyle{IEEEtran_etalRoman}
+\bibliography{refs}
+
+\end{document}
+
+

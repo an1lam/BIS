@@ -1,5 +1,6 @@
 import random
 from BIS_constants import *
+import numpy as np  
 import pdb
 
 
@@ -129,7 +130,7 @@ class PC1(Agent):
             if signals['virus'] > Viral_Infection_Threshold:
                 # self.infected = True
                 self.current_state = 2
-            elif signals[necro] > 0:
+            elif signals[apop] > 0:
                 self.current_state = 1
 
         elif self.current_state == 1:
@@ -203,7 +204,11 @@ class PC1(Agent):
         if self.current_state == 1:
             return {PK1: self.signal_level}
         if self.current_state == 2 or self.current_state == 3:
-            return {PK1: self.signal_level, 'virus': Viral_Output_Signal}
+            if self.state_time == 10:
+                return {PK1: self.signal_level, 'virus': Viral_Output_Signal}
+            else:
+                return {PK1: self.signal_level}
+            # return {PK1: self.signal_level}
         if self.current_state == 4:
             return {apop: self.signal_level}
         if self.current_state == 5:
@@ -213,7 +218,7 @@ class PC1(Agent):
         return self.current_state != 4 and self.current_state != 5 and self.current_state != 6
 
     def infected(self):
-        return self.current_state == 1 or self.current_state == 2 or self.current_state == 3
+        return self.current_state == 2 or self.current_state == 3
 
 
 class MP(Agent):
@@ -238,7 +243,7 @@ class MP(Agent):
         if self.current_state == 5:
             return 0, 0
         else:
-            return random.randint(-1,1), random.randint(-1,1)
+            return self.next_x, self.next_y
 
     def update(self):
         signals = self.tracker.signals
@@ -340,6 +345,16 @@ class MP(Agent):
         else:
             return False
 
+    def probe(self, boxes):
+        super(MP, self).probe(boxes)
+
+        PK1_map = [box.signals[PK1] for box in boxes]
+        PK1_map = np.reshape(PK1_map, (3, 3))
+        PK1_max = np.max(PK1_map)
+
+        self.next_x = np.where(PK1_map == PK1_max)[0][0] - 1
+        self.next_y = np.where(PK1_map == PK1_max)[1][0] - 1
+
 
 # A natural killer cell model, typically found in the innate immune system
 class NK(Agent):
@@ -365,7 +380,7 @@ class NK(Agent):
         if self.current_state == 2:
             return 0, 0
         else:
-            return random.randint(-1,1), random.randint(-1,1)
+            return self.next_x, self.next_y
 
     def update(self):
 
@@ -424,3 +439,44 @@ class NK(Agent):
             return {CK1: self.signal_level}
         elif self.current_state == 2:
             return {apop: self.signal_level}
+
+    def probe(self, boxes):
+        super(NK, self).probe(boxes)
+
+        PK1_map = [box.signals[PK1] for box in boxes]
+        PK1_map = np.reshape(PK1_map, (3, 3))
+        PK1_max = np.max(PK1_map)
+
+        self.next_x = np.where(PK1_map == PK1_max)[0][0] - 1
+        self.next_y = np.where(PK1_map == PK1_max)[1][0] - 1
+
+# class DC(Agent):
+    # def __init__(self, probe_range=1):
+        # self.current_state = 0  # TODO: init state
+        # self.probe_range = probe_range
+        # self.tracker = SignalTracker()
+        # self.kind = ""
+        # self.next_x = 0
+        # self.next_y = 0
+
+    # def update(self):
+        # # Simplifying model to eliminate DC2 since no innate cells
+        # # respond to MK2
+        # # Valid states: 0, 1, 6, 2
+        
+        # signals = self.tracker.signals
+        # agents = self.tracker.agents
+
+        # old_state = self.current_state
+
+        # if self.current_state == 0:
+            # if signals[virus] > 200:
+                # self.current_state = 2
+            # elif signasl[PK1] > 0:
+                # self.current_state = 1
+        # elif self.current_state == 1:
+            # if signals[virus] > 0 or any([pc.infected() for 
+
+
+
+

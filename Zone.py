@@ -13,11 +13,11 @@ from matplotlib import gridspec
 import agent
 from BIS_constants import *
 
-def test(width=20, height=20, num_cells=10, fname=None):
+def test(width=20, height=20, num_cells=10, fname=None, signal=virus):
     # zone = Zone(20, 20, 20)
     zone = Zone(width, height, num_cells)
     zone.populate()
-    zone.animate(fname)
+    zone.animate(fname, signal=signal)
 
 class Box:
     def __init__(self):
@@ -49,6 +49,32 @@ class Box:
         return "%s\n%s" % (repr(self.agents), repr(self.signals))
 
 
+class Portal:
+    def __init__(self, i, j):
+        self.pos = (i, j)
+        self.active = True
+        self.tracker = agent.SignalTracker()
+        self.time_since_emit = 0
+
+    def probe(self, box):
+        self.tracker = agent.SignalTracker()
+        for signal in box.signals:
+            self.tracker.signals[signal] += box.signals[signal]
+
+    def update(self):
+        agents = {}
+
+        # if signal threshold met, add agents
+        if self.tracker.signals[PK1]:
+            if self.time_since_emit == 10:
+                agents[MP_agt] = [agent.MP()] * NumMoToSend
+                agents[NK_agt] = [agent.NK()] * NumNKToSend
+                self.time_since_emit = 0
+
+        self.time_since_emit += 1
+        return agents
+
+
 class Zone:
     def __init__(self, width, height, cell_count):
         self.width = width
@@ -63,6 +89,11 @@ class Zone:
         mid_i = int(height / 2)
         mid_j = int(width / 2)
         self.grid[mid_i][mid_j].signals[virus] = 50
+
+        portal_cols = (int(width / 4), int(3 * width / 4))
+        portal_rows = (int(width / 4), int(3 * width / 4))
+        self.portals = [Portal(i, j) for i in portal_rows for j in portal_cols]
+
 
     def populate(self):
         # Initialize cells in this zone
@@ -88,11 +119,11 @@ class Zone:
         for x, y in [(0, 0), (int(self.width/2), int(self.height/2))]:
             self.grid[x][y].agents[PC_agt].append(agent.PC1())
 
-        for (x, y) in boxes[self.cell_count:2*self.cell_count]:
-            self.grid[x][y].agents[MP_agt].append(agent.MP())
+        # for (x, y) in boxes[self.cell_count:2*self.cell_count]:
+            # self.grid[x][y].agents[MP_agt].append(agent.MP())
 
-        for (x, y) in boxes[2*self.cell_count:3*self.cell_count]:
-            self.grid[x][y].agents[NK_agt].append(agent.NK())
+        # for (x, y) in boxes[2*self.cell_count:3*self.cell_count]:
+            # self.grid[x][y].agents[NK_agt].append(agent.NK())
 
     def update(self):
         new_grid = np.empty([self.height, self.width], dtype=np.object)
@@ -118,6 +149,19 @@ class Zone:
 
                         for signal in new_signals:
                             new_grid[(i + x) % self.height][(j + y) % self.width].signals[signal] += new_signals[signal]
+
+        for portal in self.portals:
+            i, j = portal.pos
+            portal.probe(self.grid[i][j])
+            agt_dict = portal.update()
+            # for agt_type, agents in agt_dict:
+                # self.grid[i][j].agents[agt_type] += agents
+
+            try:
+                for agt_type, agents in agt_dict.iteritems():
+                    new_grid[i][j].agents[agt_type] += agents
+            except Exception as e:
+                pdb.set_trace()
 
         self.grid = new_grid
 
@@ -216,26 +260,44 @@ class Zone:
         # TODO: account for stacked agents
         return display
 
-    def animate(self, fname=None, frames=100):
+    def animate(self, fname=None, frames=100, signal=virus):
         # fig, (agent_ax, signal_ax) = plt.subplots(1, 2, sharey=True)
-        fig, (agent_ax, signal_ax) = plt.subplots(1, 2)
+        fig, ((agent_ax, signal_ax), (necro_ax, apop_ax)) = plt.subplots(2, 2)
 
         fig = plt.figure()
-        gs = gridspec.GridSpec(1, 2, width_ratios=[1,1.26])
+        gs = gridspec.GridSpec(2, 2, width_ratios=[1,1.26, 1.26, 1.26])
         agent_ax = plt.subplot(gs[0])
         signal_ax = plt.subplot(gs[1])
+        necro_ax = plt.subplot(gs[2])
+        apop_ax = plt.subplot(gs[3])
 
         agent_ax.set_ylim(-0.5, self.grid.shape[0] - 0.5)
         agent_ax.set_xlim(-0.5, self.grid.shape[1] - 0.5)
         signal_ax.set_ylim(-0.5, self.grid.shape[0] - 0.5)
         signal_ax.set_xlim(-0.5, self.grid.shape[1] - 0.5)
+        necro_ax.set_ylim(-0.5, self.grid.shape[0] - 0.5)
+        necro_ax.set_xlim(-0.5, self.grid.shape[1] - 0.5)
+        apop_ax.set_ylim(-0.5, self.grid.shape[0] - 0.5)
+        apop_ax.set_xlim(-0.5, self.grid.shape[1] - 0.5)
+
+        agent_ax.set_title('Agents')
+        signal_ax.set_title('Virus')
+        necro_ax.set_title('Necrotic debris')
+        apop_ax.set_title('PK1 signal')
 
         agent_mat = agent_ax.imshow(self.display_grid(),
                                     vmin=0, vmax=10, aspect='equal',
                                     interpolation='nearest', origin='upper')
-        signal_mat = signal_ax.imshow(self.signal_display(virus),
+        signal_mat = signal_ax.imshow(self.signal_display(signal),
                                       vmin=0, vmax=20, aspect='equal',
                                       interpolation='nearest', origin='upper')
+
+        necro_mat = necro_ax.imshow(self.signal_display(necro),
+                                    vmin=0, vmax=10, aspect='equal',
+                                    interpolation='nearest', origin='upper')
+        apop_mat = apop_ax.imshow(self.signal_display(PK1),
+                                  vmin=0, vmax=10, aspect='equal',
+                                  interpolation='nearest', origin='upper')
         fig.colorbar(signal_mat, shrink=.5)
 
         def anim_update(tick):
@@ -244,7 +306,9 @@ class Zone:
             self.diffuse()
             agent_mat.set_data(self.display_grid())
             signal_mat.set_data(self.signal_display(virus))
-            return agent_mat, signal_mat
+            necro_mat.set_data(self.signal_display(necro))
+            apop_mat.set_data(self.signal_display(PK1))
+            return agent_mat, signal_mat, necro_mat, apop_mat
 
         if fname:
             interval = 100

@@ -2,4 +2,7 @@
 *.png
 *.mp4
 *.fsm
-
+*.aux
+*.log
+*.gz
+*.pdf
